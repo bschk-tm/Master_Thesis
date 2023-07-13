@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from free_cantilever_analytical import analytical_solution
@@ -153,27 +154,31 @@ if __name__ == "__main__":
     pinn.summary()
 
     # INPUT DATASET
-    coords = tf.linspace(0.0,pinn.Length, 1000)
+    coords = tf.linspace(0.0,pinn.Length, 10000)
+    c = np.linspace(0.0,pinn.Length, 10000)
     coords_tensor = tf.reshape(coords, (-1,1))
     target_tensor = tf.zeros_like(coords_tensor)
   
   
 
-    # TRAINING
-    history = pinn.fit(x=coords_tensor,y=target_tensor,batch_size=32,epochs=10, verbose=2)
+    # TRAINING, verbose=1 to see training progress
+    history = pinn.fit(x=coords_tensor,y=target_tensor,batch_size=32,epochs=600, verbose=2)
 
     # PREDICTION
     w_pred = pinn.predict(coords_tensor)
+    
 
     # ANALYTICAL SOLUTION
     w_analytical = analytical_solution(coords,E,I,p,L)
 
     # ERROR
-    for i in range(len(coords)):
-        error = w_pred - w_analytical
-        distinct_error = tf.abs(error)
-    
-    
+    error = w_pred[0] - w_analytical
+
+    # Select how many 
+    step = 250
+    selected_coords = c[::step]
+    selected_error = error[::step]
+
 
     loss = history.history['loss']
     pde_loss = history.history['output_1_loss']
@@ -182,47 +187,37 @@ if __name__ == "__main__":
     bc_M_loss = history.history['output_4_loss']
     bc_V_loss = history.history['output_5_loss']
 
-    # # plotting results
-    # plt.figure(0)
-    # plt.subplot(211)
-    # plt.title("Loss Curves over Epochs")
-    # plt.semilogy(history.epoch, loss, label='Composite Loss')
-    # # plt.semilogy(history.epoch, pde_loss, label='PDE Loss')
-    # # plt.semilogy(history.epoch, bc_w_loss, label='BC w Loss')
-    # # plt.semilogy(history.epoch, bc_w_x_loss, label='BC w_x Loss')
-    # # plt.semilogy(history.epoch, bc_M_loss, label='BC M Loss')
-    # # plt.semilogy(history.epoch, bc_V_loss, label='BC V Loss')
-    # plt.ylabel("Loss")
-    # plt.xlabel("Epochs")
-    # plt.legend()
-    # plt.grid()
-
-    # plt.subplot(212)
-    # plt.title("Bending w(x)")
-    # plt.plot(coords, w_pred, label='Predicted w(x)')
-    # plt.plot(coords, w_analytical, label='Analytical Solution')
-    # plt.xlabel("Spatial Coordinate x")
-    # plt.ylabel("Bending w(x)")
-    # plt.legend()
-    # plt.grid()
-
-    # # Adding error curve with secondary y-axis scale
-    # ax2 = plt.gca().twinx()  # Create secondary y-axis
-    # ax2.plot(coords, error,label='Error')
-    # ax2.set_ylabel("Error")
-    # ax2.legend()
-
-    # #plt.tight_layout()
-    # plt.show()
-
-    plt.figure(figsize=(10, 6))
-    # plt.plot(coords, w_pred, label='Prediction')
-    # plt.plot(coords, w_analytical, label='Analytical Solution')
-    plt.plot(coords, distinct_error, label='Distinct Error')
-
-    plt.xlabel('Coordinate')
-    plt.ylabel('Value')
-    plt.title('Prediction vs Analytical Solution')
+    # plotting results
+    plt.figure("Loss and Numerical vs. Analytical Results")
+    plt.subplot(211)
+    plt.title("Loss Curves over Epochs")
+    plt.semilogy(history.epoch, loss, label='Composite Loss')
+    # plt.semilogy(history.epoch, pde_loss, label='PDE Loss')
+    # plt.semilogy(history.epoch, bc_w_loss, label='BC w Loss')
+    # plt.semilogy(history.epoch, bc_w_x_loss, label='BC w_x Loss')
+    # plt.semilogy(history.epoch, bc_M_loss, label='BC M Loss')
+    # plt.semilogy(history.epoch, bc_V_loss, label='BC V Loss')
+    plt.ylabel("Loss")
+    plt.xlabel("Epochs")
     plt.legend()
-    plt.grid(True)
+    plt.grid()
+
+    ax1 = plt.subplot(212)
+    plt.title("Numerical vs. Analytical w(x)")
+    lns1 = ax1.plot(coords, w_pred, label='w_PINN (x)')
+    lns2 = ax1.plot(coords, w_analytical, label='w_analytical (x)')
+    ax1.set_xlabel("Spatial Coordinate x")
+    ax1.set_ylabel("Bending w(x)")
+    ax1.set_ylim(-0.13,0.025)
+    ax1.legend()
+    ax1.grid()
+
+    ax2 = ax1.twinx()
+    ax2.set_ylabel("Error")
+    lns3 = ax2.plot(selected_coords, selected_error, c='red',label='error')
+    lns = lns1+lns2+lns3
+    labs = [l.get_label() for l in lns]
+    ax1.legend(lns, labs, loc='center left')
+
+    plt.tight_layout()
     plt.show()
