@@ -1,13 +1,12 @@
-import numpy as np
 import tensorflow as tf
-from free_cantilever_analytical import analytical_solution
-from visualization import visualize
+import numpy as np
+from keras import regularizers
 
 # building PINN Model using subclassing 
 # https://www.tensorflow.org/guide/keras/making_new_layers_and_models_via_subclassing#the_model_class
-# https://www.tensorflow.org/api_docs/python/tf/keras/Model
+# https://www.tensorflow.org/api_docs/python/tf/keras/Mod
 
-class CantileverPINN(tf.keras.Model):
+class CantileverPINN_Regularization(tf.keras.Model):
     """ PINN for 1D free cantilever bending, solving for primary unknown w(x) """
     
     def __init__(self,E = 1.0, I = 1.0, p = 1.0, L=1.0):
@@ -18,7 +17,7 @@ class CantileverPINN(tf.keras.Model):
             - L: Model Length [m]
         """
         
-        super(CantileverPINN, self).__init__()
+        super(CantileverPINN_Regularization, self).__init__()
         self.E = E
         self.I = I
         self.p = p
@@ -34,17 +33,21 @@ class CantileverPINN(tf.keras.Model):
            Topology according to Katsikis et al. without hyperparameter tuning 
            Layer's Output is directly given as the next Layer's Input
         """
-        # input_layer    = tf.keras.layers.Input(shape = input_shape,name= 'input_layer')
-        self.hidden_layer_1 = tf.keras.layers.Dense(units=15,activation='tanh',name='Hidden_Layer_1')
-        self.hidden_layer_2 = tf.keras.layers.Dense(units=30,activation='tanh',name='Hidden_Layer_2')
-        self.hidden_layer_3 = tf.keras.layers.Dense(units=60,activation='tanh',name='Hidden_Layer_3')
-        self.output_layer   = tf.keras.layers.Dense(units=1,name='Output_Layer') # 1 primary unknown -> 1 output neuron
+        l1_strength = 0.01
+        l2_strength = 0.01
+       
+        self.hidden_layer_1 = tf.keras.layers.Dense(units=15,activation='tanh',kernel_regularizer=regularizers.L1L2(l1_strength,l2_strength),name='Hidden_Layer_1')
+        self.hidden_layer_2 = tf.keras.layers.Dense(units=30,activation='tanh',kernel_regularizer=regularizers.L1L2(l1_strength,l2_strength),name='Hidden_Layer_2')
+        self.hidden_layer_3 = tf.keras.layers.Dense(units=60,activation='tanh',kernel_regularizer=regularizers.L1L2(l1_strength,l2_strength),name='Hidden_Layer_3')
+        self.output_layer   = tf.keras.layers.Dense(units=1,kernel_regularizer=regularizers.L1L2(l1_strength,l2_strength),name='Output_Layer') # 1 primary unknown -> 1 output neuron
+
+        # adding dropout layers
+        self.dropout_layer_1 = tf.keras.layers.Dropout(0.2)
+        self.dropout_layer_2 = tf.keras.layers.Dropout(0.2)
+        self.dropout_layer_3 = tf.keras.layers.Dropout(0.2)
 
         # ensure correct initialization of weights and biases based on provided input_shape 
-        super(CantileverPINN, self).build([input_shape])
-
-        # Toggle variable
-        self.built = True
+        super(CantileverPINN_Regularization, self).build([input_shape])
 
 
     
@@ -67,8 +70,11 @@ class CantileverPINN(tf.keras.Model):
 
                         # calculation of network output w(x) via propagating the input through the layers
                         h1 = self.hidden_layer_1(x)
+                        h1 = self.dropout_layer_1(h1) # applying dropout after the related layer
                         h2 = self.hidden_layer_2(h1)
+                        h2 = self.dropout_layer_2(h2)
                         h3 = self.hidden_layer_3(h2)
+                        h3 = self.dropout_layer_3(h3)
                         w = self.output_layer(h3)
 
                     w_x = tape4.gradient(w, x) # gradient of w(x) w.r.t x
@@ -126,8 +132,7 @@ class CantileverPINN(tf.keras.Model):
         right_bc_V_loss = tf.square(bc_residual_V_L)
        
         loss = pde_loss + left_bc_w_loss + left_bc_w_x_loss + right_bc_M_loss + right_bc_V_loss
-
-    
+   
         return loss, pde_loss, left_bc_w_loss, left_bc_w_x_loss, right_bc_M_loss, right_bc_V_loss       
     
     def predict(self, inputs):
@@ -136,11 +141,11 @@ class CantileverPINN(tf.keras.Model):
         h1 = self.hidden_layer_1(x)
         h2 = self.hidden_layer_2(h1)
         h3 = self.hidden_layer_3(h2)
-        self.predictions = self.output_layer(h3)
+        self.prediction = self.output_layer(h3)
 
-        return self.predictions 
+        return self.prediction 
     
-    def evaluate(self, x_test, y_test):
+    def evaluation(self, x_test, y_test):
         """ Evaluates Model Performance on unseen test data in comparison to the analytical solution
             Returns the Loss Value for the Model in Test Mode according to MAE and the abosulte error on each collocation point
         Input:
@@ -149,53 +154,10 @@ class CantileverPINN(tf.keras.Model):
         """
 
         # prediction on the test dataset
-        y_pred = self.predict(x_test)
-
-        # absolute error for each collocation point
-        abs_error = np.abs(y_pred[0] - y_test) # numpy array of abs. errors
-
+        y_pred = tf.squeeze(self.predict(x_test))
+        
+        abs_error = np.abs((y_pred - y_test))
         # comparison to the targets (here: analytical solution)
-        evaluation_error = np.mean(abs_error) # scalar loss value acc. to MAE
+        mse_loss = np.mean(np.square(abs_error)) # scalar loss value acc. to MSE
 
-        return [abs_error, evaluation_error]
-    
-def first_run(first_run: bool):
-    return first_run
-     
-
-if __name__ == "__main__":
-
-    # Setup
-    p = 1.0  # Line load
-    E = 1.0  # Young's modulus
-    I = 1.0  # Moment of inertia
-    L = 1.0  # System Lengths
-     
-
-    # INSTANCIATION
-    pinn = CantileverPINN(E,I,p,L)
-    pinn.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss=lambda y_true, y_pred: y_pred)
-    pinn.summary()
-
-    # INPUT DATASET
-    coords = tf.linspace(0.0,pinn.Length, 10000)
-    coords_tensor = tf.reshape(coords, (-1,1))
-    target_tensor = tf.zeros_like(coords_tensor)
-
-    # TRAINING
-    history = pinn.fit(x=coords_tensor,y=target_tensor,batch_size=32,epochs=5, verbose=2)
-    first_run = False
-
-    # ANALYTICAL SOLUTION
-    y_analytical = analytical_solution(coords,E,I,p,L)
-
-    # EVALUATION
-    prediction = pinn.predict(coords)
-    evaluation = pinn.evaluate(x_test=coords,y_test=y_analytical)
-
-    # SAVING AND LOADING MODEL
-    # tf.saved_model.save(pinn, "saved models/free_cantilever_soft_bc_vanilla")
-    # pinn = tf.saved_model.load("saved models/free_cantilever_soft_bc_vanilla") 
-      
-    # VISUALIZATION
-    visualize(history, evaluation, prediction, coords, y_analytical, composite_loss = True, loss_terms = False)
+        return [abs_error, mse_loss] 

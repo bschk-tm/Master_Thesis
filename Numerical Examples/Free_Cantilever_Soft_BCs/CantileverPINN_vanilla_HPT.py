@@ -1,12 +1,11 @@
 import tensorflow as tf
-import matplotlib.pyplot as plt
-from free_cantilever_analytical import analytical_solution
+import numpy as np
 
 # building PINN Model using subclassing 
 # https://www.tensorflow.org/guide/keras/making_new_layers_and_models_via_subclassing#the_model_class
-# https://www.tensorflow.org/api_docs/python/tf/keras/Model
+# https://www.tensorflow.org/api_docs/python/tf/keras/Mod
 
-class CantileverPINN(tf.keras.Model):
+class CantileverPINN_vanilla_HPT(tf.keras.Model):
     """ PINN for 1D free cantilever bending, solving for primary unknown w(x) """
     
     def __init__(self,E = 1.0, I = 1.0, p = 1.0, L=1.0):
@@ -17,7 +16,7 @@ class CantileverPINN(tf.keras.Model):
             - L: Model Length [m]
         """
         
-        super(CantileverPINN, self).__init__()
+        super(CantileverPINN_vanilla_HPT, self).__init__()
         self.E = E
         self.I = I
         self.p = p
@@ -33,14 +32,14 @@ class CantileverPINN(tf.keras.Model):
            Topology according to Katsikis et al. without hyperparameter tuning 
            Layer's Output is directly given as the next Layer's Input
         """
-        # input_layer    = tf.keras.layers.Input(shape = input_shape,name= 'input_layer')
+  
         self.hidden_layer_1 = tf.keras.layers.Dense(units=15,activation='tanh',name='Hidden_Layer_1')
         self.hidden_layer_2 = tf.keras.layers.Dense(units=30,activation='tanh',name='Hidden_Layer_2')
         self.hidden_layer_3 = tf.keras.layers.Dense(units=60,activation='tanh',name='Hidden_Layer_3')
         self.output_layer   = tf.keras.layers.Dense(units=1,name='Output_Layer') # 1 primary unknown -> 1 output neuron
 
         # ensure correct initialization of weights and biases based on provided input_shape 
-        super(CantileverPINN, self).build([input_shape])
+        super(CantileverPINN_vanilla_HPT, self).build([input_shape])
 
 
     
@@ -122,8 +121,7 @@ class CantileverPINN(tf.keras.Model):
         right_bc_V_loss = tf.square(bc_residual_V_L)
        
         loss = pde_loss + left_bc_w_loss + left_bc_w_x_loss + right_bc_M_loss + right_bc_V_loss
-
-    
+   
         return loss, pde_loss, left_bc_w_loss, left_bc_w_x_loss, right_bc_M_loss, right_bc_V_loss       
     
     def predict(self, inputs):
@@ -132,97 +130,23 @@ class CantileverPINN(tf.keras.Model):
         h1 = self.hidden_layer_1(x)
         h2 = self.hidden_layer_2(h1)
         h3 = self.hidden_layer_3(h2)
-        predictions = self.output_layer(h3)
+        self.prediction = self.output_layer(h3)
 
-        return predictions
-
-
-       
-
-if __name__ == "__main__":
-
-    # Constants and parameters
-    p = 1.0  # Line load
-    E = 1.0  # Young's modulus
-    I = 1.0  # Moment of inertia
-    L = 1.0  # System Length
-
-    # instanciate Model
-    pinn = CantileverPINN(E,I,p,L)
-    pinn.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss=lambda y_true, y_pred: y_pred)
-    pinn.summary()
-
-    # INPUT DATASET
-    coords = tf.linspace(0.0,pinn.Length, 1000)
-    coords_tensor = tf.reshape(coords, (-1,1))
-    target_tensor = tf.zeros_like(coords_tensor)
-  
-  
-
-    # TRAINING
-    history = pinn.fit(x=coords_tensor,y=target_tensor,batch_size=32,epochs=10, verbose=2)
-
-    # PREDICTION
-    w_pred = pinn.predict(coords_tensor)
-
-    # ANALYTICAL SOLUTION
-    w_analytical = analytical_solution(coords,E,I,p,L)
-
-    # ERROR
-    for i in range(len(coords)):
-        error = w_pred - w_analytical
-        distinct_error = tf.abs(error)
+        return self.prediction 
     
-    
+    def evaluation(self, x_test, y_test):
+        """ Evaluates Model Performance on unseen test data in comparison to the analytical solution
+            Returns the Loss Value for the Model in Test Mode according to MAE and the abosulte error on each collocation point
+        Input:
+        - x_test: spatial coordinates of the collocation points, where the system should be evaluated
+        - y_test: targets related to the spatial coordinates according to the analytical solution
+        """
 
-    loss = history.history['loss']
-    pde_loss = history.history['output_1_loss']
-    bc_w_loss = history.history['output_2_loss']
-    bc_w_x_loss = history.history['output_3_loss']
-    bc_M_loss = history.history['output_4_loss']
-    bc_V_loss = history.history['output_5_loss']
+        # prediction on the test dataset
+        y_pred = tf.squeeze(self.predict(x_test))
+        
+        abs_error = np.abs((y_pred - y_test))
+        # comparison to the targets (here: analytical solution)
+        mse_loss = np.mean(np.square(abs_error)) # scalar loss value acc. to MSE
 
-    # # plotting results
-    # plt.figure(0)
-    # plt.subplot(211)
-    # plt.title("Loss Curves over Epochs")
-    # plt.semilogy(history.epoch, loss, label='Composite Loss')
-    # # plt.semilogy(history.epoch, pde_loss, label='PDE Loss')
-    # # plt.semilogy(history.epoch, bc_w_loss, label='BC w Loss')
-    # # plt.semilogy(history.epoch, bc_w_x_loss, label='BC w_x Loss')
-    # # plt.semilogy(history.epoch, bc_M_loss, label='BC M Loss')
-    # # plt.semilogy(history.epoch, bc_V_loss, label='BC V Loss')
-    # plt.ylabel("Loss")
-    # plt.xlabel("Epochs")
-    # plt.legend()
-    # plt.grid()
-
-    # plt.subplot(212)
-    # plt.title("Bending w(x)")
-    # plt.plot(coords, w_pred, label='Predicted w(x)')
-    # plt.plot(coords, w_analytical, label='Analytical Solution')
-    # plt.xlabel("Spatial Coordinate x")
-    # plt.ylabel("Bending w(x)")
-    # plt.legend()
-    # plt.grid()
-
-    # # Adding error curve with secondary y-axis scale
-    # ax2 = plt.gca().twinx()  # Create secondary y-axis
-    # ax2.plot(coords, error,label='Error')
-    # ax2.set_ylabel("Error")
-    # ax2.legend()
-
-    # #plt.tight_layout()
-    # plt.show()
-
-    plt.figure(figsize=(10, 6))
-    # plt.plot(coords, w_pred, label='Prediction')
-    # plt.plot(coords, w_analytical, label='Analytical Solution')
-    plt.plot(coords, distinct_error, label='Distinct Error')
-
-    plt.xlabel('Coordinate')
-    plt.ylabel('Value')
-    plt.title('Prediction vs Analytical Solution')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+        return [abs_error, mse_loss] 
