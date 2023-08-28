@@ -1,0 +1,13 @@
+ Layer: 5
+                      Units: [32, 416, 32, 8, 416]
+                      Activation: tanh
+                      Learning Rate: 0.0001
+                      Batch Size: 2000
+                      Patience: 20
+                      Dropout Rate: 0.0
+                      Number of Search Iterations: 10
+                      Model Name: ParametricPINN_tuned
+                      Loss on Supported Test Dataset: 2.951726855826564e-06
+                      Absolute Error Left Boundary (x=0): 0.00012160810001660138
+                      Absolute Error Right Boundary (x=L): 3.450218719081022e-05
+                      Calculation Time: 13406.358455657959 seconds 

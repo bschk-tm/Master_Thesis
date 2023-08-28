@@ -1,0 +1,13 @@
+ Layer: None
+                      Units: None
+                      Activation: None
+                      Learning Rate: None
+                      Batch Size: None
+                      Patience: None
+                      Dropout Rate: None
+                      Number of Search Iterations: None
+                      Model Name: CantileverPINN
+                      Loss on Test Dataset: 9.97547555670053e-09
+                      Absolute Error Left Boundary (x=0): 6.352366472128779e-05
+                      Absolute Error Right Boundary (x=L): 0.037257518619298935
+                      Calculation Time: 1177.1228876113892 seconds 

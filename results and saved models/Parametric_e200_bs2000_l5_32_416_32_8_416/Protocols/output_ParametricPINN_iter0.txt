@@ -1,0 +1,7 @@
+ Layer: 5
+                      Units: [32, 416, 32, 8, 416]
+                      Activation: tanh
+                      Learning Rate: 0.0001
+                      Batch Size: 2000
+                      Model Name: ParametricPINN
+                      Calculation Time: 1034.855183839798 seconds 

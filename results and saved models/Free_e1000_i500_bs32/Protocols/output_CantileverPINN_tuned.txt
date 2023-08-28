@@ -1,0 +1,13 @@
+ Layer: 3
+                      Units: [432, 304, 336]
+                      Activation: sigmoid
+                      Learning Rate: 0.0001
+                      Batch Size: 16
+                      Patience: 20
+                      Dropout Rate: 0.0
+                      Number of Search Iterations: 500
+                      Model Name: CantileverPINN_tuned
+                      Loss on Test Dataset: 6.608939784324974e-11
+                      Absolute Error Left Boundary (x=0): 2.169114168282249e-07
+                      Absolute Error Right Boundary (x=L): 0.03721754997968674
+                      Calculation Time: 249897.59038949013 seconds 

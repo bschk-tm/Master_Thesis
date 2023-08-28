@@ -1,0 +1,17 @@
+Einschränkungen basierend auf den Ergebnissen des erten Durchlaufs:
+
+  #num_layers = [*range(2,6,1)]
+  num_layers = 5
+
+  #num_neurons = [*range(32,513,32)]
+  num_neurons = [8,416,32]
+
+  activation_functions = ['relu', 'sigmoid', 'tanh']
+  learning_rates = [0.001, 0.0001]
+  #batch_sizes = [*range(8,65,8)]
+
+  #patience_values = [*range(20,41,10)]
+  patience_values = 20
+
+  #dropout_rates = [0.0,0.2,0.4]
+  dropout_rates = 0.0
